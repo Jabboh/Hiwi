@@ -4,7 +4,9 @@
 #x:basic model which is supposed to be reduced
 #z: names of the covariates, that will be dropped iteratively
 library(mgsub)
-step_waic_entCov <- function(x, z){
+x <- m_com
+z <- c("Unit", "HIDRO_MEAN_500", "NDVI_2000", "DIST_ARROZ", "DIST_urbano")
+step_waic_entCov <- function(form, x, z){
   #define the base model to which the reduced models will be compared
   base <- x
   #Create variable w_com that serves as the condition for the while-loop
@@ -14,6 +16,11 @@ step_waic_entCov <- function(x, z){
   rownames(w_com) <- "start"
   #Create a while loop, that keeps dropping variables until the more complex model
   #performs better than the reduced models
+  
+  #Define gjam model settings for all the refitting 
+  types <- c("CA", "CA", "CA")
+  #define model/algorithm parameters: 4000 gibbs steps + burnin of 1000
+  ml   <- list(ng = 4000, burnin = 1000, typeNames = types)
   while(rownames(w_com)[1] != "base"){
     #Create an empty list to store the model-objects of the different models
     st <- vector("list", length(z) + 1)
@@ -31,14 +38,19 @@ step_waic_entCov <- function(x, z){
       #We run the model without the terms associated with z (linear, quadratic
       #and interaction terms and store the fitted model in st)
       
-      
-      #############BIN HIER!##########
-      #Gjam does not generate a terms objects >> we cannot use drop.terms
-      #Neue Straegie:
-      #Mhmhmh, akzeptiert "" nicht als replacement, gibts vielleicht ne funktion, die einfach nur löscht?
-      #oder wie kennzeichnet man, dass man mit nichts ersetzen möchte...?
-      st[[j]] <- mgsub(form, c(paste0(i, " + "), paste0(" + ", i), paste0(" + I(", i, "^2)")),c("","",""))
-      ###############################                 
+      #Delete all the terms associated with covariate i in the model formula
+      formul <- mgsub(as.character(form)[2], pattern = c(paste0(i, " \\+ "), paste0(" \\+ ", i), paste0(" \\+ I\\(", i, "\\^2\\)")),
+                       replacement = c("","",""))
+      #make new xdata for that formula
+      model_xdata <- stats::model.matrix(as.formula(paste0("~",formul)), m_com$inputs$xdata)    
+      x_train <- as.data.frame(model_xdata)
+      #make the new model formula in the form gjam requires
+      form_gj <- paste(names(x_train)[-1], collapse ="+")
+      form_gj <- paste0("~", form_gj)
+      #run the gjam model
+      st[[j]] <- gjam(form_gj,
+                    ydata = y_train, xdata = x_train, modelList = ml)
+      #############BIN HIER!########## 
       print(attr(st[[j]]$terms, "term.labels"))
       #Calculating the WAIC of the model and storing it in waics
       waics[[j]] <- waic(st[[j]])

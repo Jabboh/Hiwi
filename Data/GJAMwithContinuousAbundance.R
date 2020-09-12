@@ -89,6 +89,9 @@ form <- ~ Unit + (HIDRO_MEAN_500 + NDVI_2000 + DIST_ARROZ + DIST_urbano)^2 +
 #requires this)
 model_xdata <- stats::model.matrix(form, train)    
 x_train <- as.data.frame(model_xdata)
+#make the model formula in the form gjam requires
+form_gj <- paste(names(x_train)[-1], collapse ="+")
+form_gj <- paste0("~", form_gj)
 
 #Define gjam model settings
 #variable type: continuous abundance, because we have mean abundance values (Abundance per trap 
@@ -97,9 +100,7 @@ types <- c("CA", "CA", "CA")
 #define model/algorithm parameters: 4000 gibbs steps + burnin of 1000
 ml   <- list(ng = 4000, burnin = 1000, typeNames = types)
 #run the gjam model
-m_com <- gjam(~ UnitCultives + UnitMarshland + UnitScrubland + UnitSandDunes + UnitFishponds +
-                (HIDRO_MEAN_500 + NDVI_2000 + DIST_ARROZ + DIST_urbano)^2 +
-                I(HIDRO_MEAN_500^2) + I(NDVI_2000^2) + I(DIST_ARROZ^2) + I(DIST_urbano^2),
+m_com <- gjam(form_gj,
               ydata = y_train, xdata = x_train, modelList = ml)
 summary(m_com)
 #The model performs very bad (RMSPE = 833), BUT I just want to give an example how a comprehensive
